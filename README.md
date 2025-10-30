@@ -22,4 +22,15 @@ This makes the system **safe**, **extensible**, and **production-ready** for:
 - Data audits  
 - Platform transitions
 
+The latest update introduces full MySQL → PostgreSQL schema conversion support.
+The generator now correctly maps MySQL data types to PostgreSQL equivalents and ensures that:
+
+All CREATE TABLE statements are generated first
+
+All foreign keys and indexes are written after all tables, in proper order
+
+The worker now merges all tables into a single unified SQL output file
+
+This guarantees valid PostgreSQL-compatible schema dumps without cross-table dependency errors.
+
 >  **This project is actively being developed and improved.**
