@@ -1,0 +1,8 @@
+database:
+  type: postgres
+  host: db
+  port: 5432
+  user: postgres
+  password: postgres
+  name: importer_test
+  sslmode: disable

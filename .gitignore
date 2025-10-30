@@ -1,0 +1,15 @@
+# Go build
+bigdataimporter
+*.exe
+*.out
+
+# Docker / runtime
+logs/
+uploads/
+results/
+pgdata/
+
+# IDE / system
+.vscode/
+.idea/
+.DS_Store

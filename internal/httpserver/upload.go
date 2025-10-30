@@ -1,18 +1,25 @@
 package httpserver
 
 import (
-	"bigdataimporter/internal/parser"
+	"bigdataimporter/internal/worker"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func UploadSQLHandler(w http.ResponseWriter, r *http.Request) {
 	const maxUploadSize = 1 << 30 // 1GB max file size
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+
+	target := r.FormValue("to")
+	if target == "" {
+		http.Error(w, "Eksik parametre: 'to' (örnek: postgres)", http.StatusBadRequest)
+		return
+	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
@@ -21,8 +28,7 @@ func UploadSQLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	err = os.MkdirAll("uploads", os.ModePerm)
-	if err != nil {
+	if err = os.MkdirAll("uploads", os.ModePerm); err != nil {
 		http.Error(w, "uploads klasörü oluşturulamadı", http.StatusInternalServerError)
 		return
 	}
@@ -35,21 +41,26 @@ func UploadSQLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer dst.Close()
 
-	_, err = io.Copy(dst, file)
-	if err != nil {
+	if _, err = io.Copy(dst, file); err != nil {
 		http.Error(w, fmt.Sprintf("Dosya kopyalanamadı: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Parse process
-	tables, err := parser.ParseSQLFile(dstPath)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Parse hatası: %v", err), http.StatusInternalServerError)
-		return
+	job := worker.Job{
+		ID:       fmt.Sprintf("job-%d", time.Now().UnixNano()),
+		FilePath: dstPath,
+		Target:   target,
 	}
 
-	// JSON return data type
+	worker.Enqueue(job)
+
+	resp := map[string]interface{}{
+		"message":   "Dosya alındı ve işleme kuyruğa eklendi",
+		"job_id":    job.ID,
+		"file_path": dstPath,
+		"target":    target,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(tables)
+	json.NewEncoder(w).Encode(resp)
 }
