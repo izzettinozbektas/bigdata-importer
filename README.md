@@ -22,6 +22,9 @@ This makes the system **safe**, **extensible**, and **production-ready** for:
 - Data audits  
 - Platform transitions
 
+### Recent Update
+
+
 The latest update introduces full MySQL → PostgreSQL schema conversion support.
 The generator now correctly maps MySQL data types to PostgreSQL equivalents and ensures that:
 
