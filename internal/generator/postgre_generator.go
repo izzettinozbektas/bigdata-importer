@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -164,30 +165,45 @@ func (p *PostgreGenerator) ImportData(tables []Table) error {
 
 func NormalizePostgresSyntax(sql string) string {
 	sql = strings.ReplaceAll(sql, "`", "\"")
+	sql = strings.ReplaceAll(sql, "\\'", "''")
+	sql = strings.ReplaceAll(sql, "’", "''")
+	sql = strings.ReplaceAll(sql, "‘", "''")
+	sql = strings.ReplaceAll(sql, "´", "''")
+	sql = strings.ReplaceAll(sql, "\\\\", "\\")
 	sql = strings.ReplaceAll(sql, "TRUE", "true")
 	sql = strings.ReplaceAll(sql, "FALSE", "false")
-	sql = strings.ReplaceAll(sql, "\\'", "''")
 	sql = strings.ReplaceAll(sql, "ENGINE=InnoDB", "")
 	sql = strings.ReplaceAll(sql, "CHARSET=utf8mb4", "")
-
-	// MySQL boş tarihleri PostgreSQL için güvenli hale getir
+	sql = strings.ReplaceAll(sql, "\r", " ")
+	sql = strings.ReplaceAll(sql, "\n", " ")
 	sql = strings.ReplaceAll(sql, "'0000-00-00'", "'1970-01-01'")
 	sql = strings.ReplaceAll(sql, "'0000-00-00 00:00:00'", "'1970-01-01 00:00:00'")
-	sql = strings.ReplaceAll(sql, "0000-00-00 00:00:00", "'1970-01-01 00:00:00'")
-	sql = strings.ReplaceAll(sql, "'0000-00-01'", "'1970-01-01'")
-
-	// PostgreSQL 'NULL' kelimesi bazen değer olarak geçiyor, düzelt
-	if strings.Contains(sql, " DEFAULT NULL") {
-		sql = strings.ReplaceAll(sql, " DEFAULT NULL", "")
-	}
-
-	// MySQL boolean değerlerini dönüştür
+	sql = strings.ReplaceAll(sql, " DEFAULT NULL", "")
 	sql = strings.ReplaceAll(sql, "b'0'", "false")
 	sql = strings.ReplaceAll(sql, "b'1'", "true")
-
-	// Tırnak içinde gereksiz boşlukları temizle
 	sql = strings.ReplaceAll(sql, " ,", ",")
 	sql = strings.ReplaceAll(sql, ", ", ", ")
-
 	return strings.TrimSpace(sql)
+}
+
+func SafeNormalize(sql string) string {
+	re := regexp.MustCompile(`VALUES\s*\(([^)]+)\)`)
+	return re.ReplaceAllStringFunc(sql, func(match string) string {
+		values := match[len("VALUES (") : len(match)-1]
+		parts := strings.Split(values, ",")
+		for i, p := range parts {
+			p = strings.TrimSpace(p)
+			// Boş veya NULL geç
+			if strings.EqualFold(p, "NULL") || p == "" {
+				continue
+			}
+			// Eğer tırnak yoksa ve harf içermiyorsa tırnakla
+			if !strings.Contains(p, "'") && regexp.MustCompile(`[A-Za-z]`).MatchString(p) {
+				// içeri harf varsa olduğu gibi bırak
+			} else if !strings.Contains(p, "'") {
+				parts[i] = "'" + p + "'"
+			}
+		}
+		return "VALUES (" + strings.Join(parts, ", ") + ")"
+	})
 }

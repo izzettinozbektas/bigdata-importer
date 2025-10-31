@@ -39,22 +39,18 @@ func Run(job Job, tables []parser.ParsedTable) {
 	}
 	defer conn.Close()
 
-	_, _ = conn.Exec(`SET session_replication_role = replica;`)
-	log.Println("Foreign key checks disabled temporarily")
-
-	defer func() {
-		_, _ = conn.Exec(`SET session_replication_role = DEFAULT;`)
-		log.Println("Foreign key checks re-enabled (deferred)")
-	}()
-
 	content, err := os.ReadFile(filepath.Clean(job.FilePath))
 	if err != nil {
 		log.Printf("SQL file read error: %v", err)
 		return
 	}
 
+	_, _ = conn.Exec(`SET session_replication_role = replica;`)
+	log.Println("Foreign key checks disabled temporarily")
+
 	if err := connector.ApplySchema(conn, string(content)); err != nil {
 		log.Printf("Schema apply error: %v", err)
+		_, _ = conn.Exec(`SET session_replication_role = DEFAULT;`)
 		return
 	}
 
@@ -65,4 +61,8 @@ func Run(job Job, tables []parser.ParsedTable) {
 	} else {
 		log.Printf("Data import completed successfully.")
 	}
+
+	_, _ = conn.Exec(`SET session_replication_role = DEFAULT;`)
+	log.Println("Foreign key checks re-enabled (after import)")
+
 }

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 
 	_ "github.com/lib/pq"
 )
@@ -51,19 +52,24 @@ func (p *PostgresConnector) ApplySchema(conn *sql.DB, schema string) error {
 	log.Printf("Schema başarıyla uygulandı (%s)", p.Cfg.Database.Name)
 	return nil
 }
-
 func (p *PostgresConnector) ImportData(conn *sql.DB, tables []parser.ParsedTable) error {
+	logDir := "logs"
+	os.MkdirAll(logDir, 0755)
+	failedFile := logDir + "/failed_inserts.sql"
+
 	for _, t := range tables {
 		if len(t.Inserts) == 0 {
 			continue
 		}
+
 		log.Printf("Importing %d inserts into %s...", len(t.Inserts), t.TableName)
 		for _, insertSQL := range t.Inserts {
-
 			normalized := generator.NormalizePostgresSyntax(insertSQL)
+			normalized = generator.SafeNormalize(normalized)
 
 			if _, err := conn.Exec(normalized); err != nil {
 				log.Printf("Insert error in %s: %v", t.TableName, err)
+				os.WriteFile(failedFile, []byte(normalized+";\n\n"), os.ModeAppend)
 			}
 		}
 		log.Printf("%s data imported successfully", t.TableName)

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bufio"
+	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -45,6 +46,8 @@ func ParseSQLFile(filePath string) ([]ParsedTable, error) {
 	var inserts []string
 
 	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 10*1024*1024)
+	scanner.Buffer(buf, 10*1024*1024)
 
 	var insideCreate bool
 	var insideAlter bool
@@ -55,14 +58,12 @@ func ParseSQLFile(filePath string) ([]ParsedTable, error) {
 		line := strings.TrimSpace(scanner.Text())
 		upper := strings.ToUpper(line)
 
-		// CREATE TABLE yakala
 		if strings.HasPrefix(upper, "CREATE TABLE") {
 			insideCreate = true
 			createLines = []string{line}
 			continue
 		}
 
-		// CREATE TABLE bloğu
 		if insideCreate {
 			createLines = append(createLines, line)
 			if strings.HasSuffix(line, ");") {
@@ -75,14 +76,12 @@ func ParseSQLFile(filePath string) ([]ParsedTable, error) {
 			continue
 		}
 
-		// ALTER TABLE yakala
 		if strings.HasPrefix(upper, "ALTER TABLE") {
 			insideAlter = true
 			alterLines = []string{line}
 			continue
 		}
 
-		// ALTER TABLE bloğu
 		if insideAlter {
 			alterLines = append(alterLines, line)
 			if strings.HasSuffix(line, ";") {
@@ -92,25 +91,21 @@ func ParseSQLFile(filePath string) ([]ParsedTable, error) {
 			}
 			continue
 		}
-
-		// INSERT INTO yakala (yeni eklenen kısım)
-		if strings.HasPrefix(upper, "INSERT INTO") {
-			currentInsert := strings.TrimSpace(line)
-
-			// Eğer satır ; ile bitmiyorsa devam satırlarını birleştir
-			for !strings.HasSuffix(currentInsert, ";") {
-				if !scanner.Scan() {
-					break
-				}
-				nextLine := strings.TrimSpace(scanner.Text())
-				currentInsert += " " + nextLine
-			}
-
-			inserts = append(inserts, currentInsert)
-		}
 	}
 
-	// INSERT ifadelerini ilgili tablolara dağıt
+	// Dosyanın tamamını oku ve regex ile INSERT INTO bloklarını yakala
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	sqlText := string(content)
+
+	reInsert := regexp.MustCompile(`(?is)INSERT INTO\s+.*?(?:;|LOCK TABLES|UNLOCK TABLES|ALTER TABLE)`)
+	matches := reInsert.FindAllString(sqlText, -1)
+	if len(matches) > 0 {
+		inserts = append(inserts, matches...)
+	}
+
 	for _, insert := range inserts {
 		parts := strings.SplitN(insert, " ", 4)
 		if len(parts) > 2 {
@@ -120,6 +115,18 @@ func ParseSQLFile(filePath string) ([]ParsedTable, error) {
 					tables[i].Inserts = append(tables[i].Inserts, insert)
 				}
 			}
+		}
+	}
+
+	totalInserts := 0
+	for _, t := range tables {
+		totalInserts += len(t.Inserts)
+	}
+	log.Printf("Parsed %d tables, total %d inserts", len(tables), totalInserts)
+
+	for _, t := range tables {
+		if len(t.Inserts) == 0 {
+			log.Printf("Table with no inserts: %s", t.TableName)
 		}
 	}
 
