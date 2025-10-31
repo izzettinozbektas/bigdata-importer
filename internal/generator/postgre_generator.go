@@ -151,3 +151,43 @@ func GeneratePostgreSQLSchema(tables []Table) (string, error) {
 func GeneratePostgreSQL(table Table) (string, error) {
 	return GeneratePostgreSQLSchema([]Table{table})
 }
+
+type PostgreGenerator struct{}
+
+func (p *PostgreGenerator) GenerateSchema(tables []Table) (string, error) {
+	return GeneratePostgreSQLSchema(tables)
+}
+
+func (p *PostgreGenerator) ImportData(tables []Table) error {
+	return nil
+}
+
+func NormalizePostgresSyntax(sql string) string {
+	sql = strings.ReplaceAll(sql, "`", "\"")
+	sql = strings.ReplaceAll(sql, "TRUE", "true")
+	sql = strings.ReplaceAll(sql, "FALSE", "false")
+	sql = strings.ReplaceAll(sql, "\\'", "''")
+	sql = strings.ReplaceAll(sql, "ENGINE=InnoDB", "")
+	sql = strings.ReplaceAll(sql, "CHARSET=utf8mb4", "")
+
+	// MySQL boş tarihleri PostgreSQL için güvenli hale getir
+	sql = strings.ReplaceAll(sql, "'0000-00-00'", "'1970-01-01'")
+	sql = strings.ReplaceAll(sql, "'0000-00-00 00:00:00'", "'1970-01-01 00:00:00'")
+	sql = strings.ReplaceAll(sql, "0000-00-00 00:00:00", "'1970-01-01 00:00:00'")
+	sql = strings.ReplaceAll(sql, "'0000-00-01'", "'1970-01-01'")
+
+	// PostgreSQL 'NULL' kelimesi bazen değer olarak geçiyor, düzelt
+	if strings.Contains(sql, " DEFAULT NULL") {
+		sql = strings.ReplaceAll(sql, " DEFAULT NULL", "")
+	}
+
+	// MySQL boolean değerlerini dönüştür
+	sql = strings.ReplaceAll(sql, "b'0'", "false")
+	sql = strings.ReplaceAll(sql, "b'1'", "true")
+
+	// Tırnak içinde gereksiz boşlukları temizle
+	sql = strings.ReplaceAll(sql, " ,", ",")
+	sql = strings.ReplaceAll(sql, ", ", ", ")
+
+	return strings.TrimSpace(sql)
+}

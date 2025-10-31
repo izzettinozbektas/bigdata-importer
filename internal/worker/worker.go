@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"bigdataimporter/internal/executor"
 	"bigdataimporter/internal/generator"
 	"bigdataimporter/internal/parser"
 )
@@ -51,17 +52,16 @@ func processJob(job Job) {
 		return
 	}
 
-	tables, err := parser.ParseSQLFile(job.FilePath)
+	parsedTables, err := parser.ParseSQLFile(job.FilePath)
 	if err != nil {
 		log.Printf("Parse error in %s: %v", job.FilePath, err)
 		return
 	}
-
-	if len(tables) == 0 {
+	if len(parsedTables) == 0 {
 		log.Printf("No tables found in %s", job.FilePath)
 		return
 	}
-	log.Printf("Parsed %d tables from %s", len(tables), job.FilePath)
+	log.Printf("Parsed %d tables from %s", len(parsedTables), job.FilePath)
 
 	if err := os.MkdirAll("results", 0777); err != nil {
 		log.Printf("results folder error: %v", err)
@@ -69,7 +69,7 @@ func processJob(job Job) {
 	}
 
 	var genTables []generator.Table
-	for _, t := range tables {
+	for _, t := range parsedTables {
 		genTable := generator.Table{
 			TableName:  t.TableName,
 			Fields:     make([]generator.Field, len(t.Fields)),
@@ -77,12 +77,8 @@ func processJob(job Job) {
 			Charset:    t.Charset,
 			PrimaryKey: t.PrimaryKeys,
 		}
-
 		for fi, f := range t.Fields {
-			if f.Name == "" {
-				continue
-			}
-			genTable.Fields[fi] = generator.Field{
+			genField := generator.Field{
 				Name:          f.Name,
 				Type:          f.Type,
 				Nullable:      f.Nullable,
@@ -91,27 +87,30 @@ func processJob(job Job) {
 				Default:       f.Default,
 				Index:         f.Index,
 			}
-
-			if f.ForeignKey != nil &&
-				f.ForeignKey.ReferencedTable != "" &&
-				f.ForeignKey.ReferencedField != "" {
-				genTable.Fields[fi].ForeignKey = &generator.ForeignKey{
+			if f.ForeignKey != nil {
+				genField.ForeignKey = &generator.ForeignKey{
 					ReferencedTable: f.ForeignKey.ReferencedTable,
 					ReferencedField: f.ForeignKey.ReferencedField,
 				}
 			}
+			genTable.Fields[fi] = genField
 		}
-
 		genTables = append(genTables, genTable)
 	}
 
-	output, err := generator.GeneratePostgreSQLSchema(genTables)
+	gen := selectGenerator(job.Target)
+	if gen == nil {
+		log.Printf("Unsupported target: %s", job.Target)
+		return
+	}
+
+	output, err := gen.GenerateSchema(genTables)
 	if err != nil {
-		log.Printf("Generator error: %v", err)
+		log.Printf("Schema generation error: %v", err)
 		return
 	}
 	if len(output) == 0 {
-		log.Printf("Empty SQL generated.")
+		log.Printf("Empty schema generated for %s", job.Target)
 		return
 	}
 
@@ -119,8 +118,34 @@ func processJob(job Job) {
 	if err := os.WriteFile(mergedPath, []byte(output), 0644); err != nil {
 		log.Printf("Failed to write merged file: %v", err)
 	} else {
-		log.Printf("All converted tables merged into: %s", mergedPath)
+		log.Printf("Schema exported: %s", mergedPath)
+	}
+
+	if err := gen.ImportData(genTables); err != nil {
+		log.Printf("Data import failed: %v", err)
 	}
 
 	log.Printf("Job %s completed successfully.", job.ID)
+
+	go func() {
+		log.Printf("Import başlatılıyor: %s (%s)", mergedPath, job.Target)
+		executor.Run(executor.Job{
+			ID:       job.ID + "-import",
+			FilePath: mergedPath,
+			Target:   job.Target,
+		}, parsedTables)
+	}()
+}
+
+func selectGenerator(target string) generator.Generator {
+	switch target {
+	case "postgres", "postgresql":
+		return &generator.PostgreGenerator{}
+	case "mongo", "mongodb":
+		return &generator.MongoGenerator{}
+	case "sqlite":
+		return &generator.SQLiteGenerator{}
+	default:
+		return nil
+	}
 }
