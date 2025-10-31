@@ -18,7 +18,6 @@ type Job struct {
 
 var jobQueue chan Job
 
-// StartPool - worker havuzunu başlatır
 func StartPool(workerCount int) {
 	jobQueue = make(chan Job, 100)
 	for i := 0; i < workerCount; i++ {
@@ -27,7 +26,6 @@ func StartPool(workerCount int) {
 	log.Printf("Worker pool started with %d workers", workerCount)
 }
 
-// Enqueue - yeni bir işi kuyruğa ekler
 func Enqueue(job Job) {
 	if jobQueue == nil {
 		log.Println("Worker pool not started")
@@ -70,7 +68,6 @@ func processJob(job Job) {
 		return
 	}
 
-	// ✅ 1️⃣ Tüm tabloları generator formatına dönüştür
 	var genTables []generator.Table
 	for _, t := range tables {
 		genTable := generator.Table{
@@ -108,7 +105,6 @@ func processJob(job Job) {
 		genTables = append(genTables, genTable)
 	}
 
-	// ✅ 2️⃣ Tüm tabloları tek seferde PostgreSQL'e çevir
 	output, err := generator.GeneratePostgreSQLSchema(genTables)
 	if err != nil {
 		log.Printf("Generator error: %v", err)
@@ -119,7 +115,6 @@ func processJob(job Job) {
 		return
 	}
 
-	// ✅ 3️⃣ Sonuç dosyasını oluştur
 	mergedPath := filepath.Join("results", fmt.Sprintf("merged_%s.sql", job.Target))
 	if err := os.WriteFile(mergedPath, []byte(output), 0644); err != nil {
 		log.Printf("Failed to write merged file: %v", err)

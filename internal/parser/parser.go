@@ -166,7 +166,6 @@ func parseCreateBlock(lines []string) (ParsedTable, error) {
 }
 
 func parseAlterStatement(line string, tables *[]ParsedTable) {
-	// PRIMARY KEY
 	pkRe := regexp.MustCompile(`(?i)ALTER TABLE\s+` + "`" + `([^` + "`" + `]+)` + "`" + `.*ADD PRIMARY KEY\s*\(([^)]+)\)`)
 	if matches := pkRe.FindStringSubmatch(line); len(matches) >= 3 {
 		tableName := matches[1]
@@ -186,7 +185,6 @@ func parseAlterStatement(line string, tables *[]ParsedTable) {
 		}
 	}
 
-	// AUTO_INCREMENT
 	autoIncRe := regexp.MustCompile(`(?i)ALTER TABLE\s+` + "`" + `([^` + "`" + `]+)` + "`" + `.*MODIFY\s+` + "`" + `([^` + "`" + `]+)` + "`" + `.*AUTO_INCREMENT`)
 	if matches := autoIncRe.FindStringSubmatch(line); len(matches) >= 3 {
 		tableName := matches[1]
@@ -202,7 +200,6 @@ func parseAlterStatement(line string, tables *[]ParsedTable) {
 		}
 	}
 
-	// ADD KEY (INDEX)
 	addKeyRe := regexp.MustCompile(`(?i)ALTER TABLE\s+` + "`" + `([^` + "`" + `]+)` + "`" + `.*ADD KEY\s+` + "`" + `[^` + "`" + `]+` + "`" + `\s*\(([^)]+)\)`)
 	if matches := addKeyRe.FindStringSubmatch(line); len(matches) >= 3 {
 		tableName := matches[1]
@@ -221,7 +218,6 @@ func parseAlterStatement(line string, tables *[]ParsedTable) {
 		}
 	}
 
-	// FOREIGN KEY
 	fkRe := regexp.MustCompile(`(?i)ADD CONSTRAINT\s+` + "`" + `[^` + "`" + `]+` + "`" + `\s+FOREIGN KEY\s+\(` + "`" + `([^` + "`" + `]+)` + "`" + `\)\s+REFERENCES\s+` + "`" + `([^` + "`" + `]+)` + "`" + `\s+\(` + "`" + `([^` + "`" + `]+)` + "`" + `\)`)
 	if matches := fkRe.FindStringSubmatch(line); len(matches) >= 4 {
 		sourceField := matches[1]

@@ -12,7 +12,7 @@ import (
 )
 
 func UploadSQLHandler(w http.ResponseWriter, r *http.Request) {
-	const maxUploadSize = 1 << 30 // 1GB max file size
+	const maxUploadSize = 1 << 30
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
 	target := r.FormValue("to")

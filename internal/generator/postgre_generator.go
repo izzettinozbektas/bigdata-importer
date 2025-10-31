@@ -57,13 +57,11 @@ func MySQLToPostgreType(mysqlType string, autoIncrement bool) string {
 	}
 }
 
-// ✅ Tüm tabloları işler; ALTER ve INDEX'leri her zaman en alta yazar
 func GeneratePostgreSQLSchema(tables []Table) (string, error) {
 	var sb strings.Builder
 	var allAlters []string
 	var allIndexes []string
 
-	// 1️⃣ CREATE TABLE'lar
 	for _, table := range tables {
 		if table.TableName == "" {
 			continue
@@ -112,7 +110,6 @@ func GeneratePostgreSQLSchema(tables []Table) (string, error) {
 			}
 			sb.WriteString(col + "\n")
 
-			// 🔹 ALTER ve INDEX sadece toplanıyor, hemen yazılmıyor
 			if f.ForeignKey != nil && f.ForeignKey.ReferencedTable != "" && f.ForeignKey.ReferencedField != "" {
 				fkName := fmt.Sprintf("fk_%s_%s", table.TableName, f.Name)
 				allAlters = append(allAlters,
@@ -126,14 +123,12 @@ func GeneratePostgreSQLSchema(tables []Table) (string, error) {
 			}
 		}
 
-		// çoklu primary key desteği
 		if len(table.PrimaryKey) > 1 {
 			sb.WriteString(fmt.Sprintf(",  PRIMARY KEY (%s)\n", strings.Join(table.PrimaryKey, ", ")))
 		}
 		sb.WriteString(");\n\n")
 	}
 
-	// 2️⃣ ALTER’lar (tüm tablolar bittikten sonra)
 	if len(allAlters) > 0 {
 		sb.WriteString("-- Foreign Keys\n")
 		for _, a := range allAlters {
@@ -142,7 +137,6 @@ func GeneratePostgreSQLSchema(tables []Table) (string, error) {
 		sb.WriteString("\n")
 	}
 
-	// 3️⃣ INDEX’ler (en en sonda)
 	if len(allIndexes) > 0 {
 		sb.WriteString("-- Indexes\n")
 		for _, i := range allIndexes {
@@ -154,7 +148,6 @@ func GeneratePostgreSQLSchema(tables []Table) (string, error) {
 	return sb.String(), nil
 }
 
-// 💥 Eski kodlar bozulmasın diye ekledik
 func GeneratePostgreSQL(table Table) (string, error) {
 	return GeneratePostgreSQLSchema([]Table{table})
 }
